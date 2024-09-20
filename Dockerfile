@@ -146,12 +146,28 @@ RUN apt-get update && \
     #
     curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash && \
     #
+    # Install cosign
+    #
+	COSIGN_LATEST_VERSION=$(curl -sSL https://api.github.com/repos/sigstore/cosign/releases/latest | grep tag_name | cut -d : -f2 | tr -d 'v", ')  && \
+    curl -o /tmp/cosign_${COSIGN_LATEST_VERSION}_${TARGETARCH}.deb -sSL "https://github.com/sigstore/cosign/releases/latest/download/cosign_${COSIGN_LATEST_VERSION}_${TARGETARCH}.deb" && \
+    sudo dpkg -i /tmp/cosign_${COSIGN_LATEST_VERSION}_${TARGETARCH}.deb  && \
+    # 
     # Install tflint
     #
-    echo "Installing latest tflint ..." && \
-    curl -sSL -o /tmp/tflint.zip https://github.com/terraform-linters/tflint/releases/latest/download/tflint_${TARGETOS}_${TARGETARCH}.zip && \
-    unzip -d /usr/bin /tmp/tflint.zip && \
-    chmod +x /usr/bin/tflint && \
+	TFLINT_LATEST_VERSION=$(curl -sSL https://api.github.com/repos/terraform-linters/tflint/releases/latest | grep tag_name | cut -d : -f2 | tr -d "v\", ")  && \
+	TFLINT_CERT_IDENTITY="^https://github.com/terraform-linters/tflint"   && \
+	TFLINT_OIDC_ISSUER="https://token.actions.githubusercontent.com"  && \
+	echo "Installing latest tflint ..."  && \
+	cd /tmp  && \
+	curl -sSL -o /tmp/tflint_${TARGETOS}_${TARGETARCH}.zip       https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_LATEST_VERSION}/tflint_${TARGETOS}_${TARGETARCH}.zip  && \
+	curl -sSL -o /tmp/tflint_checksums.txt                       https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_LATEST_VERSION}/checksums.txt  && \
+	curl -sSL -o /tmp/tflint_checksums.txt.keyless.sig           https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_LATEST_VERSION}/checksums.txt.keyless.sig  && \
+	curl -sSL -o /tmp/tflint_checksums.txt.pem                   https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_LATEST_VERSION}/checksums.txt.pem  && \
+    /usr/bin/cosign verify-blob --certificate=/tmp/tflint_checksums.txt.pem --signature=/tmp/tflint_checksums.txt.keyless.sig --certificate-identity-regexp=$TFLINT_CERT_IDENTITY --certificate-oidc-issuer=$TFLINT_OIDC_ISSUER /tmp/tflint_checksums.txt  && \
+    grep tflint_${TARGETOS}_${TARGETARCH}.zip /tmp/tflint_checksums.txt | sha256sum -c && \
+    sudo unzip -d /usr/bin /tmp/tflint_${TARGETOS}_${TARGETARCH}.zip  && \
+    sudo chmod +x /usr/bin/tflint && \
+    cd /tf/rover && \
     #
     # Install terrascan
     #
